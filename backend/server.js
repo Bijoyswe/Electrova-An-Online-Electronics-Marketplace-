@@ -1,0 +1,137 @@
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
+const connectDB = require('./config/db');
+
+const productRoutes = require('./routes/productRoutes');
+const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const adminOrderRoutes = require('./routes/adminOrderRoutes');
+
+// NEW routes (if you created them)
+const categoryRoutes = require('./routes/categoryRoutes');
+const brandRoutes = require('./routes/brandRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const returnRoutes = require('./routes/returnRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
+const adminCustomerRoutes = require('./routes/adminCustomerRoutes');
+const couponRoutes = require('./routes/couponRoutes');
+const offerRoutes = require('./routes/offerRoutes');
+const adminSettingsRoutes = require('./routes/adminSettingsRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const shippingRoutes = require('./routes/shippingRoutes');
+const advisorRoutes = require('./routes/advisorRoutes');
+
+const app = express();
+
+const allowedOrigins = (
+  process.env.CORS_ORIGINS ||
+  process.env.FRONTEND_URL ||
+  'http://localhost:3000'
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const sslCommerzOrigins = [
+  'https://sandbox.sslcommerz.com',
+  'https://securepay.sslcommerz.com',
+];
+
+const isAllowedNullOrigin = (origin) => !origin || origin === 'null';
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (
+      isAllowedNullOrigin(origin) ||
+      allowedOrigins.includes(origin) ||
+      sslCommerzOrigins.includes(origin)
+    ) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true
+}));
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+// Home route
+app.get('/', (req, res) => {
+  res.send("Splash Electronics Backend is running.");
+});
+
+// Mount routes
+
+// 🔹 More specific admin routes FIRST
+app.use('/api/admin/orders', adminOrderRoutes);
+app.use('/api/admin/inventory', inventoryRoutes);
+app.use('/api/admin/customers', adminCustomerRoutes); 
+app.use('/api/admin/coupons', couponRoutes);
+app.use('/api/admin/offers', offerRoutes);
+app.use('/api/admin/analytics', analyticsRoutes);
+app.use('/api/admin/settings', adminSettingsRoutes);
+
+// 🔹 Generic admin routes LAST
+app.use('/api/admin', adminRoutes);
+
+// Auth + public
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+
+app.use('/api/settings', settingsRoutes); // Public settings route
+
+app.use('/api/categories', categoryRoutes);
+app.use('/api/brands', brandRoutes);
+
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/returns', returnRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/shipping', shippingRoutes);
+app.use('/api/advisor', advisorRoutes);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({
+    status: 'fail',
+    message: `Can't find ${req.originalUrl} on this server!`
+  });
+});
+
+// Error handler (must be last)
+app.use((err, req, res, next) => {
+  console.error(err);
+
+  const statusCode = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
+
+  res.status(statusCode).json({
+    status: statusCode >= 500 ? 'error' : 'fail',
+    message: err.message || 'Something went wrong!',
+    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to start server due to DB error.', err);
+  });
+
+process.on('unhandledRejection', (err) => {
+  console.error('UNHANDLED REJECTION! 💥 Shutting down...');
+  console.error(err);
+  process.exit(1);
+});
